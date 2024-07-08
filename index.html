@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Accounts</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        #optionsSection, #signupSection, #loginSection, #gameSection {
+            text-align: center;
+        }
+        .optionButton {
+            display: block;
+            width: 200px;
+            padding: 20px;
+            margin: 10px auto;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .optionButton:hover {
+            background-color: #0056b3;
+        }
+        .hiddenSection {
+            display: none;
+        }
+        #logoutButton {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        #logoutButton:hover {
+            background-color: #c82333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .fullscreenModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            width: 80%;
+            height: 80%;
+            overflow: auto;
+            text-align: left;
+            margin: auto;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+        }
+        .input-box {
+            width: 200px;
+            height: 40px;
+            border: 1px solid #ccc;
+            margin: 10px;
+            padding: 5px;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        #revenueModal {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        #collectionModal {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        #codesModal {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+        }
+        #userCodeModal {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        #withdrawRequestsModal {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+        }
+        #onlineUsersModal {
+            position: fixed;
+            top: 40px;
+            left: 20px;
+            width: 300px;
+            padding: 20px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="text/javascript">
+        var accounts = [];
+        var currentUsername = '';
+        var balances = {};
+        var currentBetAmount = 0;
+        var totalRevenue = 0;
+        var paysafeCodes = [];
+        var withdrawRequests = [];
+        var onlineUsers = [];
+        var waitingBets = {};
+        var matches = {};
+
+        // Load accounts and balances from localStorage on startup
+        if (localStorage.getItem('accounts')) {
+            accounts = JSON.parse(localStorage.getItem('accounts'));
+        }
+        if (localStorage.getItem('balances')) {
+            balances = JSON.parse(localStorage.getItem('balances'));
+        }
+        if (localStorage.getItem('totalRevenue')) {
+            totalRevenue = parseFloat(localStorage.getItem('totalRevenue'));
+        }
+        if (localStorage.getItem('paysafeCodes')) {
+            paysafeCodes = JSON.parse(localStorage.getItem('paysafeCodes'));
+        }
+        if (localStorage.getItem('withdrawRequests')) {
+            withdrawRequests = JSON.parse(localStorage.getItem('withdrawRequests'));
+        }
+        if (localStorage.getItem('waitingBets')) {
+            waitingBets = JSON.parse(localStorage.getItem('waitingBets'));
+        }
+        if (localStorage.getItem('matches')) {
+            matches = JSON.parse(localStorage.getItem('matches'));
+        }
+
+        // Update online users list
+        function updateOnlineUsers() {
+            var onlineUsersList = document.getElementById('onlineUsersList');
+            onlineUsersList.innerHTML = '';
+            onlineUsers.forEach(function(user) {
+                var li = document.createElement('li');
+                li.textContent = user;
+                onlineUsersList.appendChild(li);
+            });
+            document.getElementById('totalOnlineUsers').innerText = `Σύνολο online χρηστών: ${onlineUsers.length}`;
+        }
+
+        // Function to show the appropriate section
+        function showSection(section) {
+            document.getElementById('optionsSection').style.display = 'none';
+            document.getElementById('signupSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('gameSection').style.display = 'none';
+            document.getElementById(section).style.display = 'block';
+        }
+
+        // Add new account
+        function addAccount() {
+            var username = document.getElementById('signupUsername').value;
+            var password = document.getElementById('signupPassword').value;
+
+            // Check if username already exists
+            var existingAccount = accounts.find(account => account.username === username);
+            if (existingAccount) {
+                alert('Το όνομα χρήστη είναι ήδη κατειλημμένο. Παρακαλώ επιλέξτε άλλο όνομα χρήστη.');
+                return;
+            }
+
+            accounts.push({username: username, password: password, codeSubmitted: false, withdrawRequestPending: false});
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            balances[username] = 0;
+            localStorage.setItem('balances', JSON.stringify(balances));
+            alert('Ο λογαριασμός δημιουργήθηκε επιτυχώς!');
+            showSection('optionsSection');
+        }
+
+        // User login function
+        function login() {
+            var username = document.getElementById('loginUsername').value;
+            var password = document.getElementById('loginPassword').value;
+            var account = accounts.find(account => account.username === username && account.password === password);
+            if (account) {
+                currentUsername = username;
+                document.getElementById('currentUser').innerText = currentUsername;
+                showSection('gameSection');
+                document.getElementById('logoutButton').style.display = 'block';
+                document.getElementById('userCodeButton').style.display = 'block';
+                onlineUsers.push(username);
+                if (username === 'nikoskaraviotis' && password === '1') {
+                    document.getElementById('showStoredAccountsBtn').style.display = 'block';
+                    document.getElementById('showPaysafeCodesBtn').style.display = 'block';
+                    document.getElementById('showWithdrawRequestsBtn').style.display = 'block';
+                    document.getElementById('showOnlineUsersBtn').style.display = 'block';
+                    showRevenueModal();
+                    document.getElementById('collectionModal').style.display = 'block';
+                }
+                updateBalanceDisplay();
+                updateOnlineUsers();
+            } else {
+                alert('Λάθος κωδικός ή όνομα χρήστη');
+            }
+        }
+
+        // User logout function
+        function logout() {
+            onlineUsers = onlineUsers.filter(user => user !== currentUsername);
+            currentUsername = '';
+            document.getElementById('logoutButton').style.display = 'none';
+            document.getElementById('revenueModal').style.display = 'none';
+            document.getElementById('collectionModal').style.display = 'none';
+            document.getElementById('codesModal').style.display = 'none';
+            document.getElementById('userCodeButton').style.display = 'none';
+            document.getElementById('showWithdrawRequestsBtn').style.display = 'none';
+            document.getElementById('showOnlineUsersBtn').style.display = 'none';
+            showSection('optionsSection');
+            updateOnlineUsers();
+        }
+
+        // JavaScript for modal functionality
+        function showMessage(text) {
+            if (text === 'Πληροφορίες') {
+                document.getElementById('infoModal').style.display = 'block';
+            }
+        }
+
+        function showPlayModal() {
+            document.getElementById('playModal').style.display = 'block';
+        }
+
+        function showBetModal() {
+            document.getElementById('betModal').style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        function updateBalanceDisplay() {
+            document.getElementById('balanceDisplay').innerText = 'Balance: €' + (balances[currentUsername] || 0).toFixed(2);
+        }
+
+        // Function for showing deposit input modal
+        function showDepositModal() {
+            document.getElementById('depositModal').style.display = 'block';
+        }
+
+        // Function for depositing money
+        function confirmPaysafeCode() {
+            var paysafeCode = document.getElementById('paysafeCode').value;
+            var account = accounts.find(account => account.username === currentUsername);
+            if (account.codeSubmitted) {
+                alert('Δεν μπορείτε να υποβάλετε νέο κωδικό Paysafe μέχρι να επεξεργαστεί ο τρέχων κωδικός σας.');
+            } else if (paysafeCode) {
+                paysafeCodes.push({username: currentUsername, code: paysafeCode});
+                localStorage.setItem('paysafeCodes', JSON.stringify(paysafeCodes));
+                account.codeSubmitted = true;
+                localStorage.setItem('accounts', JSON.stringify(accounts));
+                alert('Ο κωδικός Paysafe καταχωρήθηκε επιτυχώς και αναμένεται επεξεργασία από τον διαχειριστή.');
+            } else {
+                alert('Παρακαλώ εισάγετε έγκυρο κωδικό Paysafe.');
+            }
+            closeModal('depositModal'); // κλείσιμο του modal μετά την επεξεργασία
+        }
+
+        // Function for withdrawing money
+        function showWithdrawalModal() {
+            document.getElementById('withdrawalModal').style.display = 'block';
+        }
+
+        function confirmWithdrawal(amount) {
+            var account = accounts.find(account => account.username === currentUsername);
+            if (account.withdrawRequestPending) {
+                alert('Δεν μπορείτε να υποβάλετε νέο αίτημα ανάληψης μέχρι να επεξεργαστεί το τρέχον αίτημά σας.');
+            } else if (balances[currentUsername] >= amount) {
+                balances[currentUsername] -= amount;
+                localStorage.setItem('balances', JSON.stringify(balances));
+                withdrawRequests.push({username: currentUsername, amount: amount});
+                localStorage.setItem('withdrawRequests', JSON.stringify(withdrawRequests));
+                account.withdrawRequestPending = true;
+                localStorage.setItem('accounts', JSON.stringify(accounts));
+                alert('Ανάληψη επιτυχής! Το υπόλοιπό σας μειώθηκε κατά €' + amount + '. Ο κωδικός σας θα σταλεί σύντομα.');
+                updateBalanceDisplay();
+                closeModal('withdrawalModal');
+            } else {
+                alert('Δεν έχετε αρκετό υπόλοιπο για αυτή την ανάληψη.');
+            }
+        }
+
+        // Function to generate random Greek letters
+        function generateRandomLetters(num) {
+            const greekLetters = 'αβγδεζηθικλμνξοπρστυφχψω';
+            let letters = [];
+            for (let i = 0; i < num; i++) {
+                const randomIndex = Math.floor(Math.random() * greekLetters.length);
+                letters.push(greekLetters[randomIndex]);
+            }
+            return letters;
+        }
+
+        // Function to check the user's input
+        function checkBetInput() {
+            const inputs = document.querySelectorAll('#betInputModal input');
+            let correct = true;
+            inputs.forEach((input, index) => {
+                const letter = input.dataset.letter;
+                const correctValue = 'αβγδεζηθικλμνξοπρστυφχψω'.indexOf(letter) + 1;
+                if (parseInt(input.value) !== correctValue) {
+                    correct = false;
+                }
+            });
+
+            const endTime = Date.now();
+            const match = matches[currentUsername];
+
+            if (correct) {
+                const timeTaken = endTime - match.startTime;
+                match.times[currentUsername] = timeTaken;
+
+                if (match.times[match.opponent]) {
+                    determineWinner(match);
+                } else {
+                    alert('Αναμονή για τον αντίπαλο...');
+                }
+            } else {
+                alert('Λάθος απάντηση. Χάσατε το στοίχημα των €' + currentBetAmount.toFixed(2) + '.');
+                match.times[currentUsername] = Infinity;
+                if (match.times[match.opponent]) {
+                    determineWinner(match);
+                } else {
+                    alert('Αναμονή για τον αντίπαλο...');
+                }
+            }
+
+            closeModal('betInputModal');
+        }
+
+        function determineWinner(match) {
+            const userTime = match.times[currentUsername];
+            const opponentTime = match.times[match.opponent];
+            const betAmount = match.amount;
+            const revenueShare = betAmount * 0.05; // 5% από κάθε χρήστη
+            const totalBetAmount = betAmount * 2;
+            const winningAmount = totalBetAmount * 0.9; // 90% του συνολικού πονταρίσματος
+            totalRevenue += totalBetAmount * 0.1; // 10% του συνολικού πονταρίσματος στα έσοδα
+
+            if (userTime < opponentTime) {
+                balances[currentUsername] += winningAmount;
+                alert(`Συγχαρητήρια! Κερδίσατε €${winningAmount.toFixed(2)}.`);
+            } else {
+                balances[match.opponent] += winningAmount;
+                alert(`Ο αντίπαλός σας ήταν ταχύτερος. Χάσατε το στοίχημα των €${currentBetAmount.toFixed(2)}.`);
+            }
+
+            localStorage.setItem('balances', JSON.stringify(balances));
+            localStorage.setItem('totalRevenue', totalRevenue.toFixed(2));
+            delete matches[currentUsername];
+            delete matches[match.opponent];
+            localStorage.setItem('matches', JSON.stringify(matches));
+            updateBalanceDisplay();
+        }
+
+        // Function for betting
+        function placeBet(amount) {
+            if (balances[currentUsername] >= amount) {
+                // Αποθήκευση του στοιχήματος στην τοπική αποθήκευση
+                if (!waitingBets[amount]) {
+                    waitingBets[amount] = [];
+                }
+                waitingBets[amount].push(currentUsername);
+                localStorage.setItem('waitingBets', JSON.stringify(waitingBets));
+
+                currentBetAmount = amount;
+
+                // Έλεγχος για αντιστοίχιση
+                if (!checkForMatch(amount)) {
+                    setTimeout(() => {
+                        if (waitingBets[amount] && waitingBets[amount].includes(currentUsername)) {
+                            alert('Δεν βρέθηκε αντίπαλος με το ίδιο ποσό στοιχήματος. Παρακαλώ δοκιμάστε ξανά αργότερα.');
+                            waitingBets[amount] = waitingBets[amount].filter(user => user !== currentUsername);
+                            localStorage.setItem('waitingBets', JSON.stringify(waitingBets));
+                        }
+                    }, 60000); // 60 δευτερόλεπτα αναμονή
+                    alert('Ποντάρατε €' + amount + '. Αναμονή για αντιστοίχιση...');
+                } else {
+                    balances[currentUsername] -= amount;
+                    updateBalanceDisplay();
+                }
+            } else {
+                alert('Δεν έχετε αρκετό υπόλοιπο για αυτό το στοίχημα.');
+            }
+            closeModal('betModal');
+        }
+
+        function checkForMatch(amount) {
+            if (waitingBets[amount].length >= 2) {
+                const opponent = waitingBets[amount].shift();
+                const current = waitingBets[amount].shift();
+                localStorage.setItem('waitingBets', JSON.stringify(waitingBets));
+                matches[opponent] = { opponent: current, amount: amount, confirmed: false, times: {}, startTime: Date.now(), letters: generateRandomLetters(Math.floor(Math.random() * 5) + 3) };
+                matches[current] = { opponent: opponent, amount: amount, confirmed: false, times: {}, startTime: Date.now(), letters: matches[opponent].letters };
+                localStorage.setItem('matches', JSON.stringify(matches));
+
+                alert('Βρέθηκε αντίπαλος! Αναμονή επιβεβαίωσης και από τους δύο χρήστες.');
+
+                showMatchConfirmationModal();
+                return true;
+            }
+            return false;
+        }
+
+        function showMatchConfirmationModal() {
+            document.getElementById('matchConfirmationModal').style.display = 'block';
+        }
+
+        function confirmMatch() {
+            const match = matches[currentUsername];
+            if (match) {
+                match.confirmed = true;
+                matches[currentUsername] = match;
+                localStorage.setItem('matches', JSON.stringify(matches));
+
+                if (matches[match.opponent].confirmed) {
+                    startGame(match.opponent, currentUsername, match.amount, match.letters);
+                } else {
+                    alert('Αναμονή επιβεβαίωσης από τον αντίπαλο.');
+                }
+            }
+            closeModal('matchConfirmationModal');
+        }
+
+        function startGame(opponent, current, amount, letters) {
+            console.log(`Ξεκινά το παιχνίδι με τον χρήστη ${opponent} και τον χρήστη ${current} για το ποσό των €${amount}`);
+            const betInputContainer = document.getElementById('betInputContainer');
+            betInputContainer.innerHTML = ''; // Clear previous inputs
+            letters.forEach(letter => {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.placeholder = `Γράμμα: ${letter}`;
+                input.dataset.letter = letter;
+                betInputContainer.appendChild(input);
+            });
+            document.getElementById('betInputModal').style.display = 'block';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (localStorage.getItem('accounts')) {
+                accounts = JSON.parse(localStorage.getItem('accounts'));
+            }
+            if (localStorage.getItem('balances')) {
+                balances = JSON.parse(localStorage.getItem('balances'));
+            }
+            if (localStorage.getItem('totalRevenue')) {
+                totalRevenue = parseFloat(localStorage.getItem('totalRevenue'));
+            }
+            if (localStorage.getItem('paysafeCodes')) {
+                paysafeCodes = JSON.parse(localStorage.getItem('paysafeCodes'));
+            }
+            if (localStorage.getItem('withdrawRequests')) {
+                withdrawRequests = JSON.parse(localStorage.getItem('withdrawRequests'));
+            }
+            if (localStorage.getItem('waitingBets')) {
+                waitingBets = JSON.parse(localStorage.getItem('waitingBets'));
+            }
+            if (localStorage.getItem('matches')) {
+                matches = JSON.parse(localStorage.getItem('matches'));
+            }
+        });
+
+        // Show stored accounts with delete button for admin
+        function showStoredAccounts() {
+            var accountsList = document.getElementById('accountsList');
+            accountsList.innerHTML = ''; // Clear existing list
+            accounts.forEach(account => {
+                var li = document.createElement('li');
+                li.textContent = `Username: ${account.username}, Password: ${account.password}, Balance: €${(balances[account.username] || 0).toFixed(2)}`;
+                if (currentUsername === 'nikoskaraviotis') {
+                    var deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Διαγραφή';
+                    deleteButton.onclick = function() {
+                        deleteAccount(account.username);
+                    };
+                    li.appendChild(deleteButton);
+                }
+                accountsList.appendChild(li);
+            });
+            document.getElementById('totalAccounts').innerText = `Σύνολο λογαριασμών: ${accounts.length}`;
+            document.getElementById('storedAccountsModal').style.display = 'block';
+        }
+
+        // Delete account function
+        function deleteAccount(username) {
+            accounts = accounts.filter(account => account.username !== username);
+            delete balances[username];
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            localStorage.setItem('balances', JSON.stringify(balances));
+            showStoredAccounts();
+        }
+
+        // Function to show the revenue modal
+        function showRevenueModal() {
+            document.getElementById('revenueAmount').innerText = `Συνολικό Ποσό: €${totalRevenue.toFixed(2)}`;
+            document.getElementById('revenueModal').style.display = 'block';
+        }
+
+        // Function for collecting revenue
+        function collectRevenue() {
+            var collectAmount = parseFloat(document.getElementById('collectAmount').value);
+            if (!isNaN(collectAmount) && collectAmount > 0 && collectAmount <= totalRevenue) {
+                totalRevenue -= collectAmount;
+                localStorage.setItem('totalRevenue', totalRevenue.toFixed(2));
+                alert('Επιτυχής είσπραξη! Το ποσό των €' + collectAmount.toFixed(2) + ' αφαιρέθηκε από τα έσοδα.');
+                showRevenueModal();
+                document.getElementById('currentRevenue').innerText = `Συνολικό Ποσό: €${totalRevenue.toFixed(2)}`;
+            } else {
+                alert('Παρακαλώ εισάγετε έγκυρο ποσό.');
+            }
+        }
+
+        // Function to show Paysafe codes modal
+        function showPaysafeCodes() {
+            var codesList = document.getElementById('codesList');
+            codesList.innerHTML = ''; // Clear existing list
+            paysafeCodes.forEach(code => {
+                var li = document.createElement('li');
+                li.textContent = `Username: ${code.username}, Code: ${code.code}`;
+                var add5Button = document.createElement('button');
+                add5Button.textContent = 'Προσθήκη €5';
+                add5Button.onclick = function() {
+                    addBalance(code.username, 5, code);
+                };
+                li.appendChild(add5Button);
+                var add10Button = document.createElement('button');
+                add10Button.textContent = 'Προσθήκη €10';
+                add10Button.onclick = function() {
+                    addBalance(code.username, 10, code);
+                };
+                li.appendChild(add10Button);
+                var add20Button = document.createElement('button');
+                add20Button.textContent = 'Προσθήκη €20';
+                add20Button.onclick = function() {
+                    addBalance(code.username, 20, code);
+                };
+                li.appendChild(add20Button);
+                var cancelButton = document.createElement('button');
+                cancelButton.textContent = 'Ακύρωση';
+                cancelButton.onclick = function() {
+                    rejectPaysafeCode(code);
+                };
+                li.appendChild(cancelButton);
+                codesList.appendChild(li);
+            });
+            document.getElementById('codesModal').style.display = 'block';
+        }
+
+        // Function to add balance to a user's account
+        function addBalance(username, amount, code) {
+            // Υπολογισμός του 10% για τα έσοδα και του 90% για το υπόλοιπο του χρήστη
+            var revenueShare = amount * 0.10;
+            var userShare = amount * 0.90;
+            totalRevenue += revenueShare;
+            balances[username] = (balances[username] || 0) + userShare;
+            localStorage.setItem('totalRevenue', totalRevenue.toFixed(2));
+            localStorage.setItem('balances', JSON.stringify(balances));
+
+            alert(`Προστέθηκαν €${userShare.toFixed(2)} στον λογαριασμό του ${username} και το 10% (€${revenueShare.toFixed(2)}) προστέθηκε στα έσοδα.`);
+            var account = accounts.find(account => account.username === username);
+            account.codeSubmitted = false;
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            paysafeCodes = paysafeCodes.filter(c => c.username !== code.username);
+            localStorage.setItem('paysafeCodes', JSON.stringify(paysafeCodes));
+            showPaysafeCodes();
+        }
+
+        // Function to reject Paysafe code
+        function rejectPaysafeCode(code) {
+            alert(`Ο κωδικός του χρήστη ${code.username} απορρίφθηκε.`);
+            var account = accounts.find(account => account.username === code.username);
+            account.codeSubmitted = false;
+            localStorage.setItem('accounts', JSON.stringify(accounts));
+            paysafeCodes = paysafeCodes.filter(c => c !== code);
+            localStorage.setItem('paysafeCodes', JSON.stringify(paysafeCodes));
+            showPaysafeCodes();
+        }
+
+        function showUserCodes() {
+            var userCodesList = document.getElementById('userCodesList');
+            userCodesList.innerHTML = ''; // Clear existing list
+            var userPaysafeCodes = paysafeCodes.find(c => c.username === currentUsername);
+            if (userPaysafeCodes) {
+                var li = document.createElement('li');
+                li.textContent = `Code: ${userPaysafeCodes.code}`;
+                userCodesList.appendChild(li);
+            }
+            document.getElementById('userCodeModal').style.display = 'block';
+        }
+
+        // Function to show withdrawal requests
+        function showWithdrawRequests() {
+            var withdrawRequestsList = document.getElementById('withdrawRequestsList');
+            withdrawRequestsList.innerHTML = ''; // Clear existing list
+            withdrawRequests.forEach(request => {
+                var li = document.createElement('li');
+                li.textContent = `Username: ${request.username}, Amount: €${request.amount}`;
+                var sendCodeButton = document.createElement('button');
+                sendCodeButton.textContent = 'Στείλε Κωδικό';
+                sendCodeButton.onclick = function() {
+                    sendPaysafeCode(request);
+                };
+                li.appendChild(sendCodeButton);
+                withdrawRequestsList.appendChild(li);
+            });
+            document.getElementById('withdrawRequestsModal').style.display = 'block';
+        }
+
+        // Function to send Paysafe code to user
+        function sendPaysafeCode(request) {
+            var code = prompt(`Εισάγετε τον κωδικό Paysafe για τον χρήστη ${request.username}:`);
+            if (code) {
+                var userPaysafeCodes = paysafeCodes.find(c => c.username === request.username);
+                if (userPaysafeCodes) {
+                    userPaysafeCodes.code = code; // Update existing code
+                } else {
+                    userPaysafeCodes = {username: request.username, code: code};
+                    paysafeCodes.push(userPaysafeCodes);
+                }
+                localStorage.setItem('paysafeCodes', JSON.stringify(paysafeCodes));
+                alert(`Ο κωδικός Paysafe στάλθηκε στον χρήστη ${request.username}.`);
+                withdrawRequests = withdrawRequests.filter(r => r !== request);
+                localStorage.setItem('withdrawRequests', JSON.stringify(withdrawRequests));
+                var account = accounts.find(account => account.username === request.username);
+                account.withdrawRequestPending = false;
+                localStorage.setItem('accounts', JSON.stringify(accounts));
+                showWithdrawRequests();
+            }
+        }
+
+        function showOnlineUsers() {
+            document.getElementById('onlineUsersModal').style.display = 'block';
+        }
+    </script>
+</head>
+<body>
+    <div id="optionsSection" class="container">
+        <button class="optionButton" onclick="showSection('signupSection')">Εγγραφή</button>
+        <button class="optionButton" onclick="showSection('loginSection')">Σύνδεση</button>
+    </div>
+
+    <div id="signupSection" class="container hiddenSection">
+        <h2>Εγγραφή</h2>
+        <input type="text" id="signupUsername" placeholder="Όνομα χρήστη" class="input-box"><br>
+        <input type="password" id="signupPassword" placeholder="Κωδικός" class="input-box"><br>
+        <button class="optionButton" onclick="addAccount()">Εγγραφή</button>
+        <button class="optionButton" onclick="showSection('optionsSection')">Ακύρωση</button>
+    </div>
+
+    <div id="loginSection" class="container hiddenSection">
+        <h2>Σύνδεση</h2>
+        <input type="text" id="loginUsername" placeholder="Όνομα χρήστη" class="input-box"><br>
+        <input type="password" id="loginPassword" placeholder="Κωδικός" class="input-box"><br>
+        <button class="optionButton" onclick="login()">Σύνδεση</button>
+        <button class="optionButton" onclick="showSection('optionsSection')">Ακύρωση</button>
+    </div>
+
+    <div id="gameSection" class="container hiddenSection">
+        <h2>Καλώς ήρθατε, <span id="currentUser"></span></h2>
+        <div id="balanceDisplay" class="title">Balance: €0.00</div>
+        <button class="optionButton" onclick="showBetModal()">Παίξτε</button>
+        <button class="optionButton" onclick="showDepositModal()">Κατάθεση</button>
+        <button class="optionButton" onclick="showWithdrawalModal()">Ανάληψη</button>
+        <button class="optionButton" onclick="showMessage('Πληροφορίες')">Πληροφορίες</button>
+        <button id="logoutButton" onclick="logout()" style="display:none;">Αποσύνδεση</button>
+        <button id="showStoredAccountsBtn" class="optionButton" style="display:none;" onclick="showStoredAccounts()">Δείτε Αποθηκευμένους Λογαριασμούς</button>
+        <button id="showPaysafeCodesBtn" class="optionButton" style="display:none;" onclick="showPaysafeCodes()">Δείτε Κωδικούς Paysafe</button>
+        <button id="showWithdrawRequestsBtn" class="optionButton" style="display:none;" onclick="showWithdrawRequests()">Αιτήματα Ανάληψης</button>
+        <button id="showOnlineUsersBtn" class="optionButton" style="display:none;" onclick="showOnlineUsers()">Online Χρήστες</button>
+        <button id="userCodeButton" class="optionButton" style="display:none;" onclick="showUserCodes()">Κωδικοί</button>
+    </div>
+
+    <div id="infoModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Πληροφορίες</h2>
+            <p>Καλώς ήρθατε στο παιχνίδι! Εδώ είναι οι οδηγίες για το πώς να παίξετε:</p>
+            <p><strong>1. Κατάθεση Χρημάτων:</strong> Χρησιμοποιήστε έναν κωδικό Paysafe για να καταθέσετε χρήματα στον λογαριασμό σας. Ο κωδικός σας θα καταχωρηθεί και θα επεξεργαστεί από τον διαχειριστή.</p>
+            <p><strong>2. Ανάληψη Χρημάτων:</strong> Μπορείτε να ζητήσετε ανάληψη χρημάτων σε ποσά των €5, €10 ή €20. Ο διαχειριστής θα επεξεργαστεί το αίτημα σας και θα σας στείλει έναν κωδικό Paysafe.</p>
+            <p><strong>3. Στοιχήματα:</strong> Μπορείτε να τοποθετήσετε στοιχήματα σε διάφορα ποσά. Εάν κερδίσετε, θα κερδίσετε το 90% του ποσού του στοιχήματος σας, ενώ το 10% θα πηγαίνει στα έσοδα!</p>
+            <p><strong>4. Παιχνίδι:</strong> Στο παιχνίδι, θα πρέπει να εισάγετε τους σωστούς αριθμούς που αντιστοιχούν σε ελληνικά γράμματα. Κάθε γράμμα έχει έναν αριθμό (π.χ. α=1, β=2, ... ω=24). Καλή τύχη!</p>
+            <button class="optionButton" onclick="closeModal('infoModal')">Κλείσιμο</button>
+        </div>
+    </div>
+
+    <div id="playModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Παίξτε το Παιχνίδι</h2>
+            <p>Εδώ μπορείτε να παίξετε το παιχνίδι.</p>
+            <button class="optionButton" onclick="closeModal('playModal')">Κλείσιμο</button>
+        </div>
+    </div>
+
+    <div id="betModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Στοιχήματα</h2>
+            <button class="optionButton" onclick="placeBet(0.20)">€0.20</button>
+            <button class="optionButton" onclick="placeBet(0.50)">€0.50</button>
+            <button class="optionButton" onclick="placeBet(1)">€1.00</button>
+            <button class="optionButton" onclick="placeBet(5)">€5.00</button>
+            <button class="optionButton" onclick="closeModal('betModal')">Κλείσιμο</button>
+        </div>
+    </div>
+
+    <div id="depositModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Κατάθεση Χρημάτων</h2>
+            <input type="text" id="paysafeCode" placeholder="Κωδικός Paysafe" class="input-box"><br>
+            <button class="optionButton" onclick="confirmPaysafeCode()">Υποβολή</button>
+            <button class="optionButton" onclick="closeModal('depositModal')">Ακύρωση</button>
+        </div>
+    </div>
+
+    <div id="withdrawalModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Ανάληψη Χρημάτων</h2>
+            <button class="optionButton" onclick="confirmWithdrawal(5)">€5</button>
+            <button class="optionButton" onclick="confirmWithdrawal(10)">€10</button>
+            <button class="optionButton" onclick="confirmWithdrawal(20)">€20</button>
+            <button class="optionButton" onclick="closeModal('withdrawalModal')">Ακύρωση</button>
+        </div>
+    </div>
+
+    <div id="betInputModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Εισάγετε τους αριθμούς</h2>
+            <div id="betInputContainer"></div>
+            <button class="optionButton" onclick="checkBetInput()">Υποβολή</button>
+            <button class="optionButton" onclick="closeModal('betInputModal')">Ακύρωση</button>
+        </div>
+    </div>
+
+    <div id="storedAccountsModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2 id="totalAccounts">Αποθηκευμένοι Λογαριασμοί</h2>
+            <ul id="accountsList"></ul>
+            <button class="optionButton" onclick="closeModal('storedAccountsModal')">Κλείσιμο</button>
+        </div>
+    </div>
+
+    <div id="revenueModal">
+        <h2>Έσοδα</h2>
+        <p id="revenueAmount">Συνολικό Ποσό: €0.00</p>
+    </div>
+
+    <div id="collectionModal">
+        <h2>Είσπραξη</h2>
+        <p id="currentRevenue">Συνολικό Ποσό: €0.00</p>
+        <input type="number" id="collectAmount" placeholder="Ποσό" class="input-box"><br>
+        <button class="optionButton" onclick="collectRevenue()">Υποβολή</button>
+    </div>
+
+    <div id="codesModal">
+        <h2>Κωδικοί Paysafe</h2>
+        <ul id="codesList"></ul>
+        <button class="optionButton" onclick="closeModal('codesModal')">Κλείσιμο</button>
+    </div>
+
+    <div id="userCodeModal">
+        <h2>Κωδικοί</h2>
+        <ul id="userCodesList"></ul>
+        <button class="optionButton" onclick="closeModal('userCodeModal')">Κλείσιμο</button>
+    </div>
+
+    <div id="withdrawRequestsModal">
+        <h2>Αιτήματα Ανάληψης</h2>
+        <ul id="withdrawRequestsList"></ul>
+        <button class="optionButton" onclick="closeModal('withdrawRequestsModal')">Κλείσιμο</button>
+    </div>
+
+    <div id="onlineUsersModal">
+        <h2>Online Χρήστες</h2>
+        <ul id="onlineUsersList"></ul>
+        <p id="totalOnlineUsers">Σύνολο online χρηστών: 0</p>
+        <button class="optionButton" onclick="closeModal('onlineUsersModal')">Κλείσιμο</button>
+    </div>
+
+    <div id="matchConfirmationModal" class="fullscreenModal">
+        <div class="modal-content">
+            <h2>Επιβεβαίωση Αντιστοίχισης</h2>
+            <p>Βρέθηκε αντίπαλος! Πατήστε ΟΚ για να ξεκινήσει το παιχνίδι.</p>
+            <button class="optionButton" onclick="confirmMatch()">ΟΚ</button>
+        </div>
+    </div>
+</body>
+</html>
